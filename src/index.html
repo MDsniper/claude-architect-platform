@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Architect</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #000000;
+            --text: #ffffff;
+            --border: #ffffff;
+            --muted: #888888;
+            --hover-bg: #111111;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 320px;
+            border-right: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 24px 0;
+        }
+
+        .sidebar-header {
+            padding: 0 24px 24px;
+            border-bottom: 1px solid #333;
+            margin-bottom: 24px;
+        }
+
+        .logo {
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: #333;
+            margin-top: 16px;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--text);
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 8px;
+        }
+
+        .nav-section {
+            margin-bottom: 24px;
+        }
+
+        .chapter-title {
+            padding: 12px 24px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--muted);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chapter-title:hover {
+            background: var(--hover-bg);
+        }
+
+        .chapter-title.active {
+            color: var(--text);
+        }
+
+        .sections {
+            display: none;
+        }
+
+        .sections.expanded {
+            display: block;
+        }
+
+        .section-item {
+            padding: 10px 24px 10px 40px;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: background 0.1s;
+        }
+
+        .section-item:hover {
+            background: var(--hover-bg);
+        }
+
+        .section-item.active {
+            background: #111;
+            border-left: 2px solid var(--text);
+        }
+
+        .section-item.completed .check {
+            background: var(--text);
+        }
+
+        .section-item.completed .check::after {
+            content: '✓';
+            color: var(--bg);
+            font-size: 10px;
+        }
+
+        .check {
+            width: 16px;
+            height: 16px;
+            border: 1px solid var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        /* Main Content */
+        .main {
+            flex: 1;
+            padding: 48px 64px;
+            max-width: 900px;
+        }
+
+        .content-header {
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #333;
+        }
+
+        .breadcrumb {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 900;
+            line-height: 1.2;
+        }
+
+        .section-nav {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 48px;
+            padding-top: 24px;
+            border-top: 1px solid #333;
+        }
+
+        .nav-btn {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text);
+            text-decoration: none;
+            padding: 12px 24px;
+            border: 1px solid var(--text);
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .nav-btn:hover {
+            background: var(--text);
+            color: var(--bg);
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* Markdown Content */
+        .markdown-content {
+            font-size: 16px;
+            line-height: 1.8;
+        }
+
+        .markdown-content h2 {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 48px 0 24px;
+        }
+
+        .markdown-content h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 32px 0 16px;
+        }
+
+        .markdown-content p {
+            margin-bottom: 16px;
+        }
+
+        .markdown-content ul, .markdown-content ol {
+            margin-bottom: 16px;
+            padding-left: 24px;
+        }
+
+        .markdown-content li {
+            margin-bottom: 8px;
+        }
+
+        .markdown-content code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            background: #111;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .markdown-content pre {
+            background: #111;
+            padding: 16px 20px;
+            margin: 24px 0;
+            overflow-x: auto;
+            border-left: 2px solid var(--text);
+        }
+
+        .markdown-content pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .markdown-content blockquote {
+            border-left: 2px solid var(--muted);
+            padding-left: 20px;
+            margin: 24px 0;
+            color: var(--muted);
+        }
+
+        .markdown-content a {
+            color: var(--text);
+            text-decoration: underline;
+        }
+
+        .markdown-content strong {
+            font-weight: 700;
+        }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+            .main {
+                padding: 24px;
+            }
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading">LOADING...</div>
+
+    <div class="container" style="display: none;" id="app">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">CLAUDE ARCHITECT</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">0 / 0 COMPLETED</div>
+            </div>
+            <nav id="nav"></nav>
+        </aside>
+
+        <main class="main">
+            <div class="content-header">
+                <div class="breadcrumb" id="breadcrumb">COURSE / CHAPTER / SECTION</div>
+                <h1 id="sectionTitle">Loading...</h1>
+            </div>
+            <article class="markdown-content" id="content"></article>
+            <div class="section-nav">
+                <button class="nav-btn" id="prevBtn">← PREV</button>
+                <button class="nav-btn" id="nextBtn">NEXT →</button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const state = {
+            course: null,
+            progress: { completed_sections: [] },
+            currentSection: null,
+            sectionOrder: []
+        };
+
+        async function api(endpoint, options = {}) {
+            const res = await fetch(`/api${endpoint}`, options);
+            if (!res.ok) throw new Error(`API error: ${res.status}`);
+            return res.json();
+        }
+
+        function slugify(text) {
+            return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        }
+
+        function parseMarkdown(text) {
+            return text
+                .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+                .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+                .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/```(\w+)?\n([\s\S]+?)```/g, '<pre><code>$2</code></pre>')
+                .replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>')
+                .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+                .replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>')
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+                .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/^([^<].+)$/gm, (m) => m.startsWith('<') ? m : `<p>${m}</p>`)
+                .replace(/<p><\/p>/g, '');
+        }
+
+        function renderNav() {
+            const nav = document.getElementById('nav');
+            nav.innerHTML = state.course.chapters.map((chapter, ci) => `
+                <div class="nav-section">
+                    <div class="chapter-title" onclick="toggleChapter(${ci})">
+                        ${chapter.title.toUpperCase()}
+                        <span class="toggle-icon">${chapter.expanded ? '−' : '+'}</span>
+                    </div>
+                    <div class="sections ${chapter.expanded ? 'expanded' : ''}">
+                        ${chapter.sections.map(section => `
+                            <div class="section-item ${state.progress.completed_sections.includes(section.id) ? 'completed' : ''}"
+                                 onclick="loadSection('${section.id}')">
+                                <div class="check"></div>
+                                ${section.title}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleChapter(index) {
+            state.course.chapters[index].expanded = !state.course.chapters[index].expanded;
+            renderNav();
+        }
+
+        function loadSection(sectionId) {
+            let section = null;
+            let chapterTitle = '';
+
+            for (const chapter of state.course.chapters) {
+                const found = chapter.sections.find(s => s.id === sectionId);
+                if (found) {
+                    section = found;
+                    chapterTitle = chapter.title;
+                    break;
+                }
+            }
+
+            if (!section) return;
+
+            state.currentSection = section;
+
+            document.getElementById('breadcrumb').textContent = `COURSE / ${chapterTitle}`;
+            document.getElementById('sectionTitle').textContent = section.title;
+            document.getElementById('content').innerHTML = parseMarkdown(section.content);
+
+            document.querySelectorAll('.section-item').forEach(el => el.classList.remove('active'));
+            document.querySelector(`[onclick="loadSection('${sectionId}')"]`)?.classList.add('active');
+
+            const currentIndex = state.sectionOrder.indexOf(sectionId);
+            document.getElementById('prevBtn').disabled = currentIndex === 0;
+            document.getElementById('nextBtn').disabled = currentIndex === state.sectionOrder.length - 1;
+        }
+
+        function updateProgress() {
+            const total = state.sectionOrder.length;
+            const completed = state.progress.completed_sections.length;
+            const percent = total > 0 ? (completed / total) * 100 : 0;
+
+            document.getElementById('progressFill').style.width = `${percent}%`;
+            document.getElementById('progressText').textContent = `${completed} / ${total} COMPLETED`;
+        }
+
+        async function toggleSectionComplete(sectionId) {
+            try {
+                state.progress = await api(`/progress/${sectionId}`, { method: 'POST' });
+                updateProgress();
+                renderNav();
+                if (state.currentSection?.id === sectionId) {
+                    loadSection(sectionId);
+                }
+            } catch (e) {
+                console.error('Failed to toggle progress:', e);
+            }
+        }
+
+        async function init() {
+            try {
+                [state.course, state.progress] = await Promise.all([
+                    api('/course'),
+                    api('/progress')
+                ]);
+
+                state.course.chapters.forEach(c => c.expanded = false);
+                if (state.course.chapters.length > 0) {
+                    state.course.chapters[0].expanded = true;
+                }
+
+                state.sectionOrder = state.course.chapters.flatMap(c => c.sections.map(s => s.id));
+
+                renderNav();
+                updateProgress();
+
+                if (state.sectionOrder.length > 0) {
+                    loadSection(state.sectionOrder[0]);
+                }
+
+                document.getElementById('app').style.display = 'flex';
+                document.querySelector('.loading').style.display = 'none';
+
+                document.getElementById('prevBtn').onclick = () => {
+                    const idx = state.sectionOrder.indexOf(state.currentSection?.id);
+                    if (idx > 0) loadSection(state.sectionOrder[idx - 1]);
+                };
+
+                document.getElementById('nextBtn').onclick = () => {
+                    const idx = state.sectionOrder.indexOf(state.currentSection?.id);
+                    if (idx < state.sectionOrder.length - 1) loadSection(state.sectionOrder[idx + 1]);
+                };
+
+            } catch (e) {
+                console.error('Failed to load course:', e);
+                document.querySelector('.loading').textContent = 'ERROR LOADING COURSE';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
