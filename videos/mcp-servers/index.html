@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+      .clip { position: absolute; opacity: 0; }
+      #title {
+        font-size: 64px;
+        font-weight: 900;
+        color: #fff;
+        text-align: center;
+        position: absolute;
+        top: 140px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-transform: uppercase;
+        letter-spacing: 6px;
+      }
+      #subtitle {
+        font-size: 26px;
+        color: #a0aec0;
+        text-align: center;
+        position: absolute;
+        top: 240px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      .component {
+        position: absolute;
+        padding: 20px 28px;
+        border-radius: 12px;
+        background: rgba(30, 30, 50, 0.95);
+        color: #fff;
+        font-size: 18px;
+        font-weight: 600;
+        text-align: center;
+      }
+      #server {
+        top: 340px;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 3px solid #6366f1;
+        background: linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(139,92,246,0.2) 100%);
+        min-width: 400px;
+      }
+      #server-label { font-size: 24px; color: #6366f1; }
+      .tool-item {
+        position: absolute;
+        padding: 12px 20px;
+        background: rgba(30, 30, 50, 0.9);
+        border: 2px solid #22c55e;
+        border-radius: 8px;
+        font-size: 16px;
+        color: #22c55e;
+      }
+      #tool1 { top: 340px; left: 180px; }
+      #tool2 { top: 340px; right: 180px; }
+      #tool3 { top: 500px; left: 180px; }
+      #tool4 { top: 500px; right: 180px; }
+      .arrow-down {
+        position: absolute;
+        width: 4px;
+        height: 60px;
+        background: linear-gradient(to bottom, #6366f1, #22c55e);
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      #arrow1 { top: 260px; }
+      #arrow2 { top: 380px; }
+      .step-box {
+        position: absolute;
+        padding: 16px 24px;
+        background: rgba(245, 158, 11, 0.15);
+        border-left: 4px solid #f59e0b;
+        border-radius: 0 12px 12px 0;
+        font-size: 20px;
+        color: #fff;
+      }
+      .key-term { color: #f59e0b; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="20" data-width="1920" data-height="1080">
+      <div id="title" class="clip" data-start="0" data-duration="4" data-track-index="0">MCP SERVERS</div>
+      <div id="subtitle" class="clip" data-start="0.5" data-duration="3.5" data-track-index="1">Model Context Protocol for Tool Integration</div>
+
+      <div id="arrow1" class="clip" data-start="4" data-duration="5" data-track-index="0" style="background: linear-gradient(to bottom, #6366f1, transparent); width: 4px; height: 80px; left: 50%; transform: translateX(-50%); top: 250px;"></div>
+      <div id="server" class="clip component" data-start="4" data-duration="5" data-track-index="0">
+        <div id="server-label">MCP Server</div>
+      </div>
+      <div id="tool1" class="clip tool-item" data-start="4.5" data-duration="4.5" data-track-index="0">get_customer</div>
+      <div id="tool2" class="clip tool-item" data-start="4.7" data-duration="4.3" data-track-index="0">lookup_order</div>
+      <div id="tool3" class="clip tool-item" data-start="4.9" data-duration="4.1" data-track-index="0">process_refund</div>
+      <div id="tool4" class="clip tool-item" data-start="5.1" data-duration="3.9" data-track-index="0">track_shipment</div>
+
+      <div id="step1" class="clip step-box" data-start="9" data-duration="4" data-track-index="0">
+        <span class="key-term">Tool:</span> Return structured errors with <span style="color:#22c55e">{ isError: true }</span>
+      </div>
+      <div id="step2" class="clip step-box" data-start="13" data-duration="4" data-track-index="0">
+        <span class="key-term">Resources:</span> Persistent data Claude can read
+      </div>
+      <div id="step3" class="clip step-box" data-start="17" data-duration="3" data-track-index="0">
+        <span class="key-term">Config:</span> .mcp.json with env vars
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      tl.from("#title", { opacity: 0, scale: 0.8, duration: 1 }, 0)
+        .from("#subtitle", { opacity: 0, y: 20, duration: 0.8 }, 0.3)
+        .from("#server", { opacity: 0, scale: 0.5, duration: 0.8 }, 4)
+        .from("#tool1", { opacity: 0, y: -50, duration: 0.5 }, 4.5)
+        .from("#tool2", { opacity: 0, y: -50, duration: 0.5 }, 4.7)
+        .from("#tool3", { opacity: 0, y: -50, duration: 0.5 }, 4.9)
+        .from("#tool4", { opacity: 0, y: -50, duration: 0.5 }, 5.1)
+        .from("#step1", { opacity: 0, x: -100, duration: 0.6 }, 9)
+        .from("#step2", { opacity: 0, x: 100, duration: 0.6 }, 13)
+        .from("#step3", { opacity: 0, y: 50, duration: 0.6 }, 17);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

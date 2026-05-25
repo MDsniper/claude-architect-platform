@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+      .clip { position: absolute; opacity: 0; }
+      #title {
+        font-size: 72px;
+        font-weight: 900;
+        color: #fff;
+        text-align: center;
+        position: absolute;
+        top: 180px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-transform: uppercase;
+        letter-spacing: 8px;
+        text-shadow: 0 0 40px rgba(99, 102, 241, 0.8);
+      }
+      #subtitle {
+        font-size: 28px;
+        color: #a0aec0;
+        text-align: center;
+        position: absolute;
+        top: 300px;
+        left: 50%;
+        transform: translateX(-50%);
+        letter-spacing: 4px;
+      }
+      .diagram-box {
+        position: absolute;
+        padding: 20px 32px;
+        border-radius: 16px;
+        background: rgba(30, 30, 50, 0.9);
+        border: 2px solid #6366f1;
+        color: #fff;
+        font-weight: 700;
+        font-size: 20px;
+      }
+      #coordinator {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        top: 420px;
+        left: 50%;
+        transform: translateX(-50%);
+        box-shadow: 0 0 60px rgba(99, 102, 241, 0.5);
+      }
+      .subagent {
+        background: rgba(30, 30, 50, 0.9);
+        border-color: #22c55e;
+      }
+      #subagent1 { top: 280px; left: 200px; }
+      #subagent2 { top: 280px; right: 200px; }
+      #subagent3 { top: 600px; left: 200px; }
+      .arrow {
+        position: absolute;
+        width: 100px;
+        height: 4px;
+        background: #6366f1;
+      }
+      .step-text {
+        position: absolute;
+        padding: 16px 24px;
+        background: rgba(30, 30, 50, 0.95);
+        border-radius: 12px;
+        font-size: 22px;
+        color: #fff;
+        border-left: 4px solid #f59e0b;
+      }
+      .key-term { color: #f59e0b; font-weight: 700; }
+      .code-small {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 16px;
+        color: #22c55e;
+        background: #0d0d12;
+        padding: 16px 24px;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="20" data-width="1920" data-height="1080">
+      <!-- Title -->
+      <div id="title" class="clip" data-start="0" data-duration="4" data-track-index="0">MULTI-AGENT SYSTEMS</div>
+      <div id="subtitle" class="clip" data-start="0.5" data-duration="3.5" data-track-index="1">Coordinator + Subagents Architecture</div>
+
+      <!-- Diagram -->
+      <div id="coordinator" class="clip diagram-box" data-start="4" data-duration="5" data-track-index="0">COORDINATOR</div>
+      <div id="subagent1" class="clip diagram-box subagent" data-start="4.5" data-duration="4.5" data-track-index="0">Web Search</div>
+      <div id="subagent2" class="clip diagram-box subagent" data-start="5" data-duration="4" data-track-index="0">Document Analysis</div>
+      <div id="subagent3" class="clip diagram-box subagent" data-start="5.5" data-duration="3.5" data-track-index="0">Synthesis</div>
+
+      <!-- Key points -->
+      <div id="step1" class="clip step-text" data-start="9" data-duration="4" data-track-index="0">
+        <span class="key-term">1.</span> Coordinator analyzes request
+      </div>
+      <div id="step2" class="clip step-text" data-start="13" data-duration="4" data-track-index="0">
+        <span class="key-term">2.</span> Delegates to specialized subagents
+      </div>
+      <div id="step3" class="clip step-text" data-start="17" data-duration="3" data-track-index="0">
+        <span class="code-small">Promise.all(tasks)</span>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      tl.from("#title", { opacity: 0, scale: 0.8, duration: 1 }, 0)
+        .from("#subtitle", { opacity: 0, y: 20, duration: 0.8 }, 0.3)
+        .from("#coordinator", { opacity: 0, scale: 0.5, duration: 0.8 }, 4)
+        .from("#subagent1", { opacity: 0, x: -200, duration: 0.6 }, 4.5)
+        .from("#subagent2", { opacity: 0, x: 200, duration: 0.6 }, 5)
+        .from("#subagent3", { opacity: 0, y: 200, duration: 0.6 }, 5.5)
+        .from("#step1", { opacity: 0, x: -100, duration: 0.6 }, 9)
+        .from("#step2", { opacity: 0, x: 100, duration: 0.6 }, 13)
+        .from("#step3", { opacity: 0, scale: 0.9, duration: 0.6 }, 17);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

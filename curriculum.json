@@ -1,0 +1,670 @@
+{
+  "title": "Claude Certified Architect — Foundations",
+  "description": "Master agent architecture, MCP integration, Claude Code, and production AI systems",
+  "domains": [
+    {
+      "id": "agent-architecture",
+      "title": "Agent Architecture & Orchestration",
+      "weight": "27%",
+      "lessons": [
+        {
+          "id": "agent-loops",
+          "title": "Building Agent Loops",
+          "video": "/videos/agent-loop-intro.mp4",
+          "objectives": [
+            "Implement a basic agent loop with tool calling",
+            "Handle stop_reason to control loop flow",
+            "Manage conversation state between API calls"
+          ],
+          "concept": "An agent loop is the core pattern for building autonomous AI systems. The loop reads the stop_reason from each Claude response: if it's 'tool_use', execute the tool and continue; if it's 'end_turn', present the final answer and stop.",
+          "examples": [
+            {
+              "title": "Basic Agent Loop",
+              "code": "const response = await claude.messages.create({ model: 'claude-sonnet-4-6', messages, tools });\n\nif (response.stop_reason === 'tool_use') {\n  const toolResult = await executeTool(response.content[0]);\n  messages.push({ role: 'user', content: toolResult });\n  continue; // Call Claude again\n} else if (response.stop_reason === 'end_turn') {\n  showAnswer(response.content[0].text);\n  break; // Done\n}",
+              "explanation": "This is the minimal agent loop. We check stop_reason after each response. Tool_use means Claude wants to call a tool; end_turn means Claude has finished."
+            },
+            {
+              "title": "Agent Loop with Error Handling",
+              "code": "async function runAgentLoop(messages, tools, maxIterations = 20) {\n  for (let i = 0; i < maxIterations; i++) {\n    try {\n      const response = await claude.messages.create({ messages, tools, model: 'claude-sonnet-4-6' });\n      \n      if (response.stop_reason === 'end_turn') {\n        return { done: true, result: response };\n      }\n      \n      if (response.stop_reason === 'tool_use') {\n        const toolCall = response.content[0];\n        const result = await executeWithTimeout(toolCall, 30000);\n        messages.push({ role: 'user', content: result });\n        continue;\n      }\n    } catch (error) {\n      if (error.code === 'rate_limit_error') {\n        await sleep(exponentialBackoff(attempts++));\n        continue;\n      }\n      throw error;\n    }\n  }\n  return { done: false, error: 'Max iterations reached' };\n}",
+              "explanation": "Add error handling for rate limits with exponential backoff, timeout handling, and iteration limits to prevent infinite loops."
+            },
+            {
+              "title": "Streaming Agent Loop",
+              "code": "const stream = await claude.messages.stream({ messages, tools, model: 'claude-sonnet-4-6', stream: true });\n\n\nlet currentToolCall = null;\n\nfor await (const event of stream) {\n  if (event.type === 'content_block_delta') {\n    if (event.delta.type === 'thinking') {\n      // Show Claude's reasoning\n      process.stdout.write(event.delta.thinking);\n    }\n    if (event.delta.type === 'text_delta') {\n      process.stdout.write(event.delta.text);\n    }\n  }\n  if (event.type === 'message_delta') {\n    if (event.delta.stop_reason === 'tool_use') {\n      currentToolCall = event.delta.content;\n    }\n  }\n}",
+              "explanation": "For better UX, stream responses as they arrive. Show thinking, text deltas, and detect when a tool call is about to happen."
+            },
+            {
+              "title": "Parallel Tool Execution",
+              "code": "// Claude can request multiple tools at once\nif (response.stop_reason === 'tool_use') {\n  const toolCalls = response.content.filter(b => b.type === 'tool_use');\n  \n  // Execute in parallel for speed\n  const results = await Promise.all(\n    toolCalls.map(toolCall => executeTool(toolCall))\n  );\n  \n  // Add all results to message history\n  messages.push({\n    role: 'user',\n    content: results.map((r, i) => ({\n      type: 'tool_result',\n      tool_use_id: toolCalls[i].id,\n      content: r\n    }))\n  });\n}",
+              "explanation": "Claude can request multiple tools in one response. Execute them in parallel for maximum efficiency, then return all results together."
+            },
+            {
+              "title": "Session-Based Agent Loop",
+              "code": "// Use sessions for stateful conversations\nconst session = await claude.sessions.create({\n  model: 'claude-sonnet-4-6',\n  tools: ['browser_use', 'web_search']\n});\n\n// Each turn is isolated but shares history\nconst turn1 = await session.turn({\n  messages: [{ role: 'user', content: 'Search for AI news' }]\n});\n\nconst turn2 = await session.turn({\n  messages: [{ role: 'user', content: 'Now browse the first result' }]\n});\n// Session maintains context automatically",
+              "explanation": "Sessions provide built-in conversation history management. Each turn is a separate API call but the session maintains the full context."
+            },
+            {
+              "title": "Subagent Pattern",
+              "code": "// Coordinator delegates to specialized subagents\nasync function coordinatorAgent(userRequest) {\n  const plan = await claude.messages.create({\n    messages: [{ role: 'user', content: `Analyze this request and create a plan: ${userRequest}` }],\n    tools: [{ name: 'delegate', description: 'Delegate to subagent', input_schema: { type: 'object', properties: { task: { type: 'string' }, agent_type: { type: 'string' } } } }]\n  });\n  \n  const delegation = JSON.parse(plan.content[0].text);\n  \n  // Run subagents in parallel\n  const subagentTasks = delegation.tasks.map(task => \n    runSubagent(task.agent_type, task.instructions)\n  );\n  \n  const results = await Promise.all(subagentTasks);\n  return synthesizeResults(results);\n}",
+              "explanation": "A coordinator agent analyzes requests and delegates to specialized subagents. Each subagent handles a specific task type (research, coding, review)."
+            },
+            {
+              "title": "Tool Preconditions",
+              "code": "// Enforce tool ordering with preconditions\nconst TOOL_PRECONDITIONS = {\n  'lookup_order': ['get_customer'],\n  'process_refund': ['get_customer', 'lookup_order'],\n  'escalate_to_human': []\n};\n\nfunction validateToolSequence(toolName, completedTools) {\n  const required = TOOL_PRECONDITIONS[toolName] || [];\n  const missing = required.filter(t => !completedTools.includes(t));\n  if (missing.length > 0) {\n    throw new Error(`Tool ${toolName} requires: ${missing.join(', ')}`);\n  }\n}\n\n// Before executing any tool\nvalidateToolSequence('process_refund', completedTools);",
+              "explanation": "Use preconditions to enforce required tool sequences. For example, process_refund should only be called after get_customer and lookup_order."
+            },
+            {
+              "title": "Confidence-Based Routing",
+              "code": "async function routeWithConfidence(request) {\n  const analysis = await claude.messages.create({\n    messages: [{ role: 'user', content: `Analyze confidence for: ${request}` }],\n    tools: [{ name: 'assess_confidence', ... }]\n  });\n  \n  const { confidence, routing } = JSON.parse(analysis.content[0].text);\n  \n  if (confidence < 0.7) {\n    return escalateToHuman(request, 'low_confidence');\n  }\n  \n  if (routing === 'specialist') {\n    return delegateToSpecialist(request);\n  }\n  \n  return runStandardAgent(request);\n}",
+              "explanation": "Route requests based on confidence scores. Low-confidence requests go to humans; high-complexity requests go to specialized agents."
+            }
+          ],
+          "exercises": [
+            {
+              "prompt": "Build an agent loop that calls a 'get_weather' tool and returns the weather for a user-provided city. Handle the tool_use and end_turn cases correctly.",
+              "hints": [
+                "Check response.stop_reason",
+                "Use switch/case for different stop reasons",
+                "Append tool results to messages array"
+              ]
+            },
+            {
+              "prompt": "Add retry logic with exponential backoff to the agent loop. Retry up to 3 times on rate limit errors.",
+              "hints": [
+                "Track retry attempts",
+                "Use setTimeout for delays",
+                "Increase delay exponentially: delay * 2^attempts"
+              ]
+            },
+            {
+              "prompt": "Implement a maximum iteration limit (e.g., 10 iterations) and stop gracefully if the limit is reached.",
+              "hints": [
+                "Add counter variable",
+                "Check in loop condition",
+                "Return partial results if interrupted"
+              ]
+            }
+          ],
+          "lab": {
+            "title": "Build a Customer Support Agent",
+            "description": "Create a customer support agent that can handle order status checks, refunds, and escalations. Use proper tool preconditions and error handling.",
+            "steps": [
+              "Define tools: get_customer, lookup_order, process_refund, escalate_to_human",
+              "Implement agent loop with proper stop_reason handling",
+              "Add tool preconditions (refund requires customer verification first)",
+              "Handle errors gracefully and escalate when needed",
+              "Add session persistence for multi-turn conversations"
+            ]
+          }
+        },
+        {
+          "id": "multi-agent-systems",
+          "title": "Multi-Agent Orchestration",
+          "objectives": [
+            "Design coordinator-subagent architectures",
+            "Implement parallel task execution",
+            "Handle subagent errors and timeouts"
+          ],
+          "concept": "Multi-agent systems use specialized agents working together. A coordinator delegates tasks to subagents, aggregates results, and synthesizes final outputs.",
+          "examples": [
+            {
+              "title": "Coordinator Pattern",
+              "code": "class Coordinator {\n  async handle(userRequest) {\n    // Analyze and decompose the request\n    const plan = await this.createPlan(userRequest);\n    \n    // Delegate to appropriate subagents\n    const tasks = plan.subagents.map(s => this.delegate(s));\n    const results = await Promise.all(tasks);\n    \n    // Aggregate and synthesize\n    return this.synthesize(results);\n  }\n  \n  async createPlan(request) {\n    // Use Claude to break down the request\n    return claude.messages.create({\n      messages: [{ role: 'user', content: `Create execution plan: ${request}` }]\n    });\n  }\n}",
+              "explanation": "The coordinator pattern has a main agent that analyzes requests, delegates to subagents, and synthesizes results. Subagents are specialized for specific tasks."
+            },
+            {
+              "title": "Parallel Execution",
+              "code": "async function researchPipeline(query) {\n  // Coordinator assigns tasks\n  const [webTask, docTask] = await Promise.all([\n    webSearchAgent(query),\n    documentAgent(query)\n  ]);\n  \n  // Both run simultaneously\n  const [webResults, docResults] = await Promise.all([\n    webTask, docTask\n  ]);\n  \n  // Pass to synthesis agent\n  return synthesisAgent(query, { webResults, docResults });\n}",
+              "explanation": "Run independent subagents in parallel. Web search and document analysis can happen simultaneously, then results are combined."
+            },
+            {
+              "title": "Hierarchical Delegation",
+              "code": "// Layer 1: Main coordinator\nconst mainCoordinator = new Coordinator();\n\n// Layer 2: Domain coordinators\nconst codeCoordinator = new CodeCoordinator();\nconst researchCoordinator = new ResearchCoordinator();\n\n\n// Layer 3: Specialized subagents\nconst codeSearch = new CodeSearchAgent();\nconst codeReview = new CodeReviewAgent();\n\n// Main delegates to domain coordinators\n// Domain coordinators delegate to specialized agents\nawait mainCoordinator.delegate({\n  to: codeCoordinator,\n  task: 'Review the authentication module'\n});",
+              "explanation": "For complex systems, use hierarchical delegation. A main coordinator delegates to domain coordinators, which in turn delegate to specialized agents."
+            },
+            {
+              "title": "Context Passing",
+              "code": "// Explicitly pass context to subagents\nconst subagentPrompt = `\nYou are a code review specialist.\n\nContext from coordinator:\n- File: src/auth/login.ts\n- Language: TypeScript\n- Focus: Security best practices\n\nYour task: ${task.instructions}\n\n\nReturn your findings in this format:\n{ \"issue\": \"...\", \"severity\": \"high|medium|low\", \"recommendation\": \"...\" }`;\n\nconst result = await subagent(subagentPrompt);",
+              "explanation": "Subagents need explicit context. Pass relevant files, requirements, and constraints directly in the prompt rather than expecting the subagent to infer."
+            },
+            {
+              "title": "Error Propagation",
+              "code": "async function runWithErrorHandling(subagentFn, fallback) {\n  try {\n    return await subagentFn();\n  } catch (error) {\n    if (error.type === 'timeout') {\n      // Return partial results or fallback\n      return fallback({ timeout: true, partialResults: error.partial });\n    }\n    if (error.type === 'invalid_output') {\n      // Retry with corrected prompt\n      return retryWithCorrection(subagentFn, error.details);\n    }\n    throw error; // Unknown error, propagate\n  }\n}",
+              "explanation": "Subagents can fail. Handle errors gracefully: timeouts can return partial results, invalid outputs can be retried with corrections."
+            },
+            {
+              "title": "Result Aggregation",
+              "code": "async function aggregateResults(subagentResults) {\n  // Normalize different output formats\n  const normalized = subagentResults.map(r => ({\n    source: r.agentType,\n    findings: parseFindings(r.output),\n    confidence: r.confidence\n  }));\n  \n  // Group by topic\n  const grouped = groupByTopic(normalized);\n  \n  // Synthesize into coherent response\n  return synthesisAgent(grouped);\n}",
+              "explanation": "Subagents return results in different formats. Normalize outputs, group by topic, then synthesize into a coherent response."
+            },
+            {
+              "title": "Subagent with Allowed Tools",
+              "code": "// Restrict subagent capabilities\nconst restrictedAgent = await claude.agent({\n  model: 'claude-sonnet-4-6',\n  allowedTools: ['Read', 'Grep', 'bash'], // No Write or Edit\n  system: 'You are a code analysis agent. You can read and search but cannot modify files.'\n});\n\n// Coordinator controls what subagent can do\nawait coordinator.delegate({\n  agent: restrictedAgent,\n  task: 'Find all security issues in the codebase'\n});",
+              "explanation": "Limit subagent capabilities using allowedTools. This prevents subagents from making unintended changes."
+            },
+            {
+              "title": "Fork Session for Isolation",
+              "code": "// Fork for exploration without polluting main context\nconst forked = await session.fork();\n// Explore in isolated context\nawait forked.turn({\n  messages: [{ role: 'user', content: 'Explore alternative implementations...' }]\n});\n\n// Only keep final decision in main context\nconst summary = await forked.summarize();\nawait session.turn({\n  messages: [{ role: 'user', content: `Decision: ${summary}` }]\n});",
+              "explanation": "Use fork_session for exploration tasks. Brainstorming and exploration stay in an isolated context, and only the final decision returns to the main conversation."
+            }
+          ],
+          "exercises": [
+            {
+              "prompt": "Build a research pipeline with a coordinator, web search agent, and document analysis agent. Run them in parallel and aggregate results.",
+              "hints": [
+                "Use Promise.all for parallel execution",
+                "Define structured output format for each agent",
+                "Coordinator synthesizes final result"
+              ]
+            },
+            {
+              "prompt": "Add a timeout handler for subagents. If a subagent times out, return partial results and mark them accordingly.",
+              "hints": [
+                "Use Promise.race with timeout",
+                "Return { timedOut: true, partial: ... }",
+                "Coordinator handles partial results"
+              ]
+            },
+            {
+              "prompt": "Implement a supervisor agent that monitors subagent outputs and can request corrections or additional work.",
+              "hints": [
+                "Supervisor reviews each result",
+                "Can request re-run with different parameters",
+                "Only proceeds when satisfied"
+              ]
+            }
+          ],
+          "lab": {
+            "title": "Multi-Agent Research System",
+            "description": "Build a research pipeline where a coordinator delegates to web search, document analysis, and synthesis agents.",
+            "steps": [
+              "Create coordinator that analyzes user query",
+              "Implement web search agent for online research",
+              "Implement document analysis agent for local files",
+              "Run agents in parallel and aggregate results",
+              "Add synthesis agent to produce final report"
+            ]
+          },
+          "video": "/videos/multi-agent-intro.mp4"
+        },
+        {
+          "id": "tool-selection",
+          "title": "Tool Selection & Routing",
+          "objectives": [
+            "Write effective tool descriptions",
+            "Handle ambiguous tool selection",
+            "Implement programmatic tool routing"
+          ],
+          "concept": "Claude chooses tools based on descriptions. Clear, differentiated descriptions are critical for reliable tool selection.",
+          "examples": [
+            {
+              "title": "Good Tool Descriptions",
+              "code": "const tools = [\n  {\n    name: 'get_customer',\n    description: 'Look up a customer by their email, phone number, or account ID. Returns customer profile including name, email, account status, and order history. Use this when users say \"my account\", \"I have an account\", or provide identifying information.',\n    input_schema: {\n      type: 'object',\n      properties: {\n        identifier: {\n          type: 'string',\n          description: 'Customer email, phone, or account ID'\n        }\n      },\n      required: ['identifier']\n    }\n  },\n  {\n    name: 'lookup_order',\n    description: 'Find a specific order by order ID or customer reference. Returns order details including items, status, shipping info, and payment summary. Use this when users say \"my order\", \"order status\", or provide an order number.',\n    input_schema: {\n      type: 'object',\n      properties: {\n        order_id: { type: 'string', description: 'Order ID (format: ORD-XXXXX)' }\n      },\n      required: ['order_id']\n    }\n  }\n];",
+              "explanation": "Good descriptions include: what the tool does, when to use it, what it returns. Include trigger phrases like 'when users say X'."
+            },
+            {
+              "title": "Differentiating Similar Tools",
+              "code": "// Problem: Two similar tools confuse Claude\n// Bad: Both accept 'query' parameter\n{\n  name: 'search_products',\n  description: 'Search product catalog by query'\n},\n{\n  name: 'search_customers', \n  description: 'Search customer database by query'\n}\n\n// Good: Clear differentiation\n{\n  name: 'search_products',\n  description: 'Search the product catalog for items matching keywords, category, or SKU. Returns product details, pricing, and inventory. Input: product name, category, or SKU.',\n  input_schema: { properties: { product_query: { type: 'string' } } }\n},\n{\n  name: 'search_customers',\n  description: 'Search the customer database by name, email, or account ID. Returns customer contact info and account summary. Input: customer name, email, or account ID.',\n  input_schema: { properties: { customer_query: { type: 'string' } } }\n}",
+              "explanation": "Similar tools need different input field names and explicit differentiation in descriptions. Don't let both use 'query'."
+            },
+            {
+              "title": "Handling Ambiguous Requests",
+              "code": "// When customer identification is ambiguous\nconst response = await get_customer({ identifier: 'John' });\nif (response.matches > 1) {\n  // Return all matches and ask for clarification\n  return {\n    status: 'needs_clarification',\n    message: 'Multiple customers found:',\n    options: response.customers.map(c => ({\n      id: c.id,\n      name: c.name,\n      email: c.email,\n      recent_order: c.last_order_date\n    }))\n  };\n}\n\n// Claude will present options to user",
+              "explanation": "When get_customer returns multiple matches, don't guess. Return options and let Claude ask for clarification."
+            },
+            {
+              "title": "Few-Shot Examples for Tool Selection",
+              "code": "const systemPrompt = `\nYou are a customer support agent.\n\nExamples of correct tool selection:\n\n\nUser: \"Check my order #12345\"\nThought: The user wants order status. They provided an order number, so use lookup_order.\nTool: lookup_order({\"order_id\": \"12345\"})\n\nUser: \"I need help with my account\"\nThought: The user wants account information. Use get_customer to verify their identity first.\nTool: get_customer({\"identifier\": <ask customer>})\n\n\nUser: \"Refund for order #12345\"\nThought: Need to verify customer and look up order before processing refund.\nTool: get_customer({\"identifier\": <customer info>})\nYou must call get_customer first to verify identity before any other action.`;",
+              "explanation": "Few-shot examples teach Claude the correct tool selection patterns for ambiguous scenarios."
+            },
+            {
+              "title": "Preconditions as Code",
+              "code": "// Enforce tool sequencing programmatically\nclass ToolOrchestrator {\n  constructor() {\n    this.completedTools = new Set();\n    this.toolGraph = {\n      'get_customer': [],\n      'lookup_order': ['get_customer'],\n      'process_refund': ['get_customer', 'lookup_order']\n    };\n  }\n  \n  async execute(toolName, args) {\n    const required = this.toolGraph[toolName] || [];\n    const missing = required.filter(t => !this.completedTools.has(t));\n    \n    if (missing.length > 0) {\n      throw new Error(`Must call ${missing.join(', ')} first`);\n    }\n    \n    const result = await this.callTool(toolName, args);\n    this.completedTools.add(toolName);\n    return result;\n  }\n}",
+              "explanation": "Programmatic preconditions enforce required sequences. The orchestrator tracks which tools have been called and blocks out-of-order calls."
+            },
+            {
+              "title": "Routing Classifier",
+              "code": "// Pre-classify user intent to route to correct agent\nasync function classifyAndRoute(message) {\n  const classification = await claude.messages.create({\n    messages: [{ role: 'user', content: `Classify: ${message}` }],\n    tools: [{\n      name: 'route',\n      description: 'Route the request to the appropriate handler',\n      input_schema: {\n        type: 'object',\n        properties: {\n          category: { \n            type: 'string',\n            enum: ['order_status', 'refund', 'account', 'product', 'escalation']\n          },\n          confidence: { type: 'number' }\n        }\n      }\n    }]\n  });\n  \n  const { category } = parseToolCall(classification);\n  return handlers[category](message);\n}",
+              "explanation": "A routing classifier analyzes incoming requests and routes to the appropriate specialized handler."
+            },
+            {
+              "title": "Tool Descriptions for Edge Cases",
+              "code": "{\n  name: 'process_refund',\n  description: 'Process a refund for a verified order.\\n\\n' +\n    '- MUST call get_customer first to verify customer identity\\n' +\n    '- MUST call lookup_order to confirm order exists and status\\n' +\n    '- Can only refund orders in status: delivered, cancelled, or within 30 days of delivery\\n' +\n    '- Partial refunds supported for multi-item orders\\n\\n' +\n    'DO NOT use for: exchanges, store credit, or price adjustments.',\n  input_schema: {\n    type: 'object',\n    properties: {\n      order_id: { type: 'string' },\n      amount: { \n        type: 'number',\n        description: 'Refund amount in dollars. Leave null for full refund.'\n      },\n      reason: {\n        type: 'string',\n        enum: ['defective', 'wrong_item', 'changed_mind', 'late_delivery', 'other']\n      }\n    },\n    required: ['order_id', 'reason']\n  }\n}",
+              "explanation": "Edge cases belong in tool descriptions. Include MUST/SHOULD/never patterns, status constraints, and explicit exclusions."
+            },
+            {
+              "title": "Dynamic Tool Selection",
+              "code": "// Enable/disable tools based on context\nconst baseTools = [get_customer, lookup_order, search_kb];\n\n// Add specialized tools only when needed\nfunction buildToolsForContext(context) {\n  const tools = [...baseTools];\n  \n  if (context.hasOrderDetails) {\n    tools.push(process_refund, track_shipment);\n  }\n  \n  if (context.isVIP) {\n    tools.push(escalate_premium, apply_discount);\n  }\n  \n  return tools;\n}\n\nconst tools = buildToolsForContext(sessionContext);",
+              "explanation": "Dynamic tool selection adds/removes tools based on context. VIP customers get additional tools; orders in certain states get refund options."
+            }
+          ],
+          "exercises": [
+            {
+              "prompt": "Write tool descriptions for a file operations system. Create tools for read, write, delete, and list. Make sure they are clearly differentiated.",
+              "hints": [
+                "Include trigger phrases in descriptions",
+                "Specify input formats (e.g., file paths, glob patterns)",
+                "Note return value formats"
+              ]
+            },
+            {
+              "prompt": "Add few-shot examples to a tool's system prompt showing correct and incorrect usage patterns.",
+              "hints": [
+                "Show both correct and incorrect examples",
+                "Include reasoning for each example",
+                "Make edge cases explicit"
+              ]
+            },
+            {
+              "prompt": "Implement a precondition check that ensures get_customer is called before lookup_order.",
+              "hints": [
+                "Track called tools in a Set",
+                "Check before each tool execution",
+                "Throw descriptive error if violated"
+              ]
+            }
+          ],
+          "lab": {
+            "title": "Tool Selection Challenge",
+            "description": "Build a tool set for an e-commerce assistant and test tool selection with 20+ realistic user queries.",
+            "steps": [
+              "Define 5 tools: search_products, get_customer, lookup_order, process_refund, track_shipment",
+              "Write detailed descriptions with trigger phrases",
+              "Test with 20 ambiguous user queries",
+              "Fix any tool selection errors with improved descriptions or few-shot examples"
+            ]
+          },
+          "video": "/videos/tool-selection.mp4"
+        }
+      ]
+    },
+    {
+      "id": "mcp-integration",
+      "title": "Tool Design & MCP Integration",
+      "weight": "18%",
+      "lessons": [
+        {
+          "id": "mcp-servers",
+          "title": "Building MCP Servers",
+          "objectives": [
+            "Create MCP server with tools and resources",
+            "Handle errors with structured responses",
+            "Implement authentication and security"
+          ],
+          "concept": "MCP (Model Context Protocol) servers expose tools and resources to Claude. Well-designed MCP servers provide clear interfaces, structured errors, and proper security.",
+          "examples": [
+            {
+              "title": "Basic MCP Server",
+              "code": "import { McpServer } from '@modelcontextprotocol/sdk';\n\n\nconst server = new McpServer({\n  name: 'customer-support',\n  version: '1.0.0'\n});\n\nserver.tool('get_customer', {\n  description: 'Look up customer by email or account ID',\n  inputSchema: {\n    type: 'object',\n    properties: {\n      identifier: { type: 'string' }\n    }\n  },\n  async execute({ identifier }) {\n    const customer = await db.customers.findOne({ identifier });\n    if (!customer) {\n      return { isError: true, message: 'Customer not found' };\n    }\n    return { customer };\n  }\n});",
+              "explanation": "Basic MCP server structure. Tools return either success data or { isError: true, message } for errors."
+            },
+            {
+              "title": "Structured Error Responses",
+              "code": "async function getOrder(orderId) {\n  // Validate input\n  if (!orderId || !orderId.match(/^ORD-\\\\d+$/)) {\n    return {\n      isError: true,\n      code: 'INVALID_ORDER_ID',\n      message: 'Order ID must be in format ORD-XXXXX',\n      retryable: false\n    };\n  }\n  \n  try {\n    const order = await db.orders.findOne({ orderId });\n    if (!order) {\n      return {\n        isError: true,\n        code: 'ORDER_NOT_FOUND',\n        message: `Order ${orderId} not found`,\n        retryable: false\n      };\n    }\n    return { order };\n  } catch (error) {\n    if (error.code === 'DB_TIMEOUT') {\n      return {\n        isError: true,\n        code: 'DATABASE_ERROR',\n        message: 'Database temporarily unavailable',\n        retryable: true\n      };\n    }\n    throw error;\n  }\n}",
+              "explanation": "Structured errors include code, message, and retryable flag. This lets the agent handle errors appropriately."
+            },
+            {
+              "title": "MCP Resources",
+              "code": "server.resource('customer-profile', {\n  uriPattern: /^customer\\\\/(\\\\w+)$/,\n  async load({ params }) {\n    const customer = await db.customers.findOne({ id: params[0] });\n    return {\n      mcp: 'file',\n      data: JSON.stringify(customer)\n    };\n  }\n});\n// Claude can then use:\n// { type: 'resource', name: 'customer-profile', uri: 'customer/123' }\n\n// Or list available resources\nserver.resourceTemplate('transaction-history', {\n  uriTemplate: 'transactions/(\\\\w+)/(\\\\d{4}-\\\\d{2})?',\n  async list() {\n    // Returns list of available transaction resources\n    return [{ uri: 'transactions/123/2024-01' }, ...];\n  }\n});",
+              "explanation": "Resources provide persistent data that Claude can read. Use uriPattern for dynamic resources or resourceTemplate for collections."
+            },
+            {
+              "title": "Tool with Multiple Parameters",
+              "code": "server.tool('search_products', {\n  description: 'Search the product catalog',\n  inputSchema: {\n    type: 'object',\n    properties: {\n      query: { type: 'string', description: 'Search query' },\n      category: { \n        type: 'string',\n        enum: ['electronics', 'clothing', 'home', 'sports']\n      },\n      min_price: { type: 'number' },\n      max_price: { type: 'number' },\n      in_stock_only: { type: 'boolean', default: false },\n      sort_by: {\n        type: 'string',\n        enum: ['relevance', 'price_asc', 'price_desc', 'newest'],\n        default: 'relevance'\n      },\n      limit: { type: 'number', minimum: 1, maximum: 50, default: 10 }\n    }\n  },\n  async execute({ query, category, min_price, max_price, in_stock_only, sort_by, limit }) {\n    return db.products.search({ query, filters: { category, min_price, max_price, in_stock_only }, sort_by, limit });\n  }\n});",
+              "explanation": "Complex tools can have multiple optional parameters with defaults, enums, and value constraints."
+            },
+            {
+              "title": "Authentication in MCP",
+              "code": "// MCP server with authentication\nimport { McpServer } from '@modelcontextprotocol/sdk';\n\nconst server = new McpServer({\n  name: 'secure-api',\n  version: '1.0.0'\n});\n\n// Middleware for authentication\nserver.middleware(async (request, next) => {\n  const token = request.headers.authorization?.replace('Bearer ', '');\n  \n  if (!token) {\n    throw new Error('Unauthorized: No token provided');\n  }\n  \n  try {\n    const user = await verifyToken(token);\n    request.context = { user };\n    return next(request);\n  } catch (error) {\n    throw new Error('Unauthorized: Invalid token');\n  }\n});\n\n// Tool with auth context\nserver.tool('get_user_orders', {\n  async execute(args, context) {\n    // context.user is available from middleware\n    return db.orders.findAll({ customerId: context.user.id });\n  }\n});",
+              "explanation": "Use middleware for authentication. The middleware runs before tool execution and can add context (like the authenticated user)."
+            },
+            {
+              "title": "Paginated Results",
+              "code": "server.tool('list_transactions', {\n  description: 'List transactions with pagination',\n  inputSchema: {\n    type: 'object',\n    properties: {\n      account_id: { type: 'string' },\n      page: { type: 'number', default: 1 },\n      per_page: { type: 'number', default: 20, maximum: 100 }\n    }\n  },\n  async execute({ account_id, page, per_page }) {\n    const [transactions, total] = await db.transactions.findAndCountAll({\n      where: { account_id },\n      limit: per_page,\n      offset: (page - 1) * per_page\n    });\n    \n    return {\n      transactions,\n      pagination: {\n        page,\n        per_page,\n        total,\n        total_pages: Math.ceil(total / per_page),\n        has_next: page * per_page < total\n      }\n    };\n  }\n});",
+              "explanation": "For large result sets, use pagination. Return both the data and pagination metadata so Claude knows if there are more results."
+            },
+            {
+              "title": "Batch Operations",
+              "code": "server.tool('bulk_update_orders', {\n  description: 'Update multiple orders at once',\n  inputSchema: {\n    type: 'object',\n    properties: {\n      order_ids: { \n        type: 'array',\n        items: { type: 'string' },\n        maxItems: 50\n      },\n      status: {\n        type: 'string',\n        enum: ['processing', 'shipped', 'delivered', 'cancelled']\n      },\n      note: { type: 'string' }\n    }\n  },\n  async execute({ order_ids, status, note }) {\n    const results = await db.orders.bulkUpdate(\n      { where: { id: { in: order_ids } }, update: { status, note } }\n    );\n    \n    return {\n      updated: results.successful,\n      failed: results.failed.map(f => ({\n        order_id: f.id,\n        error: f.error\n      }))\n    };\n  }\n});",
+              "explanation": "Batch operations let Claude update multiple items in one call. Return both successful and failed operations with details."
+            },
+            {
+              "title": "MCP Server Configuration",
+              "code": "// .mcp.json\n{\n  \"mcpServers\": {\n    \"customer-support\": {\n      \"command\": \"node\",\n      \"args\": [\"/path/to/server.js\"],\n      \"env\": {\n        \"DATABASE_URL\": \"${DATABASE_URL}\",\n        \"API_KEY\": \"${CUSTOMER_SUPPORT_API_KEY}\"\n      }\n    }\n  }\n}\n\n// Environment variables are substituted, so each developer sets their own:\n// DATABASE_URL=postgres://localhost/support\n// CUSTOMER_SUPPORT_API_KEY=dev_key_123",
+              "explanation": "MCP servers are configured in .mcp.json with environment variable substitution. This keeps credentials out of version control."
+            }
+          ],
+          "exercises": [
+            {
+              "prompt": "Build an MCP server with a 'search_files' tool that accepts query, file_type, and max_results parameters. Return proper structured errors.",
+              "hints": [
+                "Use @modelcontextprotocol/sdk",
+                "Define inputSchema properly",
+                "Return { isError: true } for failures"
+              ]
+            },
+            {
+              "prompt": "Add authentication middleware to the MCP server. Reject requests without valid Bearer tokens.",
+              "hints": [
+                "Use server.middleware()",
+                "Check Authorization header",
+                "Throw error for invalid tokens"
+              ]
+            },
+            {
+              "prompt": "Create a paginated 'list_files' tool with page and per_page parameters.",
+              "hints": [
+                "Include pagination metadata in response",
+                "Calculate has_next based on results",
+                "Set reasonable limits"
+              ]
+            }
+          ],
+          "lab": {
+            "title": "Build an MCP Server",
+            "description": "Create a full MCP server for a document management system with search, read, write, and delete tools.",
+            "steps": [
+              "Initialize MCP server project",
+              "Implement search_documents tool with filters",
+              "Add read_document and write_document tools",
+              "Add structured error handling",
+              "Configure in .mcp.json"
+            ]
+          },
+          "video": "/videos/mcp-servers.mp4"
+        }
+      ]
+    },
+    {
+      "id": "claude-code",
+      "title": "Claude Code Configuration & Workflows",
+      "weight": "20%",
+      "lessons": [
+        {
+          "id": "claude-md",
+          "title": "CLAUDE.md & Project Configuration",
+          "objectives": [
+            "Structure CLAUDE.md with clear sections",
+            "Use path-specific rules for conventions",
+            "Configure skills and commands"
+          ],
+          "concept": "CLAUDE.md is the primary configuration file for Claude Code. Well-structured CLAUDE.md provides context, conventions, and constraints for the project.",
+          "examples": [
+            {
+              "title": "Basic CLAUDE.md Structure",
+              "code": "# Project Overview\n\nThis is a REST API for managing tasks. Built with Express.js and PostgreSQL.\n\n## Tech Stack\n- Node.js 20+\n- Express.js\n- PostgreSQL with Prisma ORM\n- Jest for testing\n\n## Project Structure\n```\n/src\n  /routes      - API route handlers\n  /services   - Business logic\n  /models     - Database models\n  /middleware - Express middleware\n```\n\n## Key Conventions\n\n### Error Handling\n- All errors return { error: string, code: string }\n- HTTP status codes: 400 bad input, 404 not found, 500 server error\n\n### Response Format\n- Success: { data: ..., meta: { ... } }\n- Always include request ID for tracing",
+              "explanation": "CLAUDE.md should have clear sections: overview, tech stack, structure, and conventions. Claude reads this at project start."
+            },
+            {
+              "title": "Path-Specific Rules",
+              "code": "# Code Conventions by Path\n\n## Frontend (src/client/**/*)\n- Use functional components with hooks\n- CSS modules for styling\n- No class components\n\n## Backend (src/server/**/*)\n- Controller-Service-Repository pattern\n- All async functions use try/catch\n- Return typed responses\n\n## Tests (*.test.ts)\n- Unit tests for all services\n- Integration tests for routes\n- Mock external API calls",
+              "explanation": "Path-specific conventions let you define different rules for different parts of the codebase."
+            },
+            {
+              "title": ".claude/rules/ Files",
+              "code": "---\nname: react-components\ndescription: React component conventions\npaths:\n  - \"src/components/**/*\"\n  - \"src/hooks/**/*\"\n---\n\n# React Component Conventions\n\n## File Structure\n```\nComponentName/\n  index.tsx       - Main component\n  styles.ts       - Styled components\n  types.ts        - TypeScript types\n  test.tsx        - Unit tests\n```\n\n## Component Template\n```tsx\nimport { useState } from 'react';\n\nexport function ComponentName({ initialValue }: Props) {\n  const [value, setValue] = useState(initialValue);\n  \n  return <div>{value}</div>;\n}\n```\n\n## TypeScript\n- Always type props explicitly\n- Use interface, not type, for component props\n- Export all types",
+              "explanation": ".claude/rules/ files with YAML frontmatter let you define path-specific conventions. The paths field uses glob patterns."
+            },
+            {
+              "title": "Custom Slash Commands",
+              "code": "# .claude/commands/review.md\n\n---\nname: review\ndescription: Run code review checklist\n---\n\n# Code Review Command\n\nReview the selected code against this checklist:\n\n\n## Correctness\n- [ ] No obvious bugs or logic errors\n- [ ] Edge cases handled\n- [ ] Error handling present\n\n## Security\n- [ ] No hardcoded secrets\n- [ ] Input validation\n- [ ] SQL injection prevention\n\n## Performance\n- [ ] No N+1 queries\n- [ ] Appropriate caching\n- [ ] Index usage where needed\n\nProvide a summary of issues found with severity (high/medium/low) and recommendations.",
+              "explanation": "Custom commands in .claude/commands/ are available as slash commands. Each command has metadata and detailed instructions."
+            },
+            {
+              "title": "Skills with Context Isolation",
+              "code": "---\nname: explore-alternatives\ndescription: Explore implementation alternatives\ncontext: fork\nallowed-tools:\n  - Read\n  - Grep\n  - Bash\n---\n\n# Explore Alternatives Skill\n\nThis skill runs in an isolated fork session to explore different implementation approaches without polluting the main conversation.\n\n\n## Usage\nRun this skill when you need to evaluate multiple options before deciding on an implementation.\n\n## Process\n1. Understand the requirements\n2. Research 2-3 alternative approaches\n3. List pros and cons for each\n4. Make a recommendation with justification\n\n## Output Format\n```\n## Option A: [Name]\n**Pros:** ...\n**Cons:** ...\n\n\n\n## Option B: [Name]\n**Pros:** ...\n**Cons:** ...\n\n## Recommendation: [Option]\n**Reasoning:** ...\n```",
+              "explanation": "Skills can use context: fork to run in isolation. This prevents exploration context from affecting the main conversation."
+            },
+            {
+              "title": "CLAUDE.md with Examples",
+              "code": "## Response Formats\n\n### List Items\nWhen asked to list items, use this format:\n```\n1. **Item Name** - Brief description\n2. **Item Name** - Brief description\n```\n\n\n### Error Messages\nAll error messages must include:\n- What went wrong\n- What the user should do\n- Example of correct usage\n\n### API Calls\nWhen making API calls, include:\n- Endpoint\n- Request body\n- Expected response format",
+              "explanation": "Include output format examples in CLAUDE.md. This ensures Claude generates responses in the format you expect."
+            },
+            {
+              "title": "MCP Configuration in CLAUDE.md",
+              "code": "## External Integrations\n\n### Database\nWe use PostgreSQL with Prisma. MCP server provides:\n- `query_database` - Execute read-only SQL\n- `get_schema` - View table schemas\n\n### APIs\n- GitHub: Search PRs, check CI status\n- Slack: Post notifications\n- Linear: Create/update tickets\n\nAll MCP tools are configured in `.mcp.json`. See that file for credentials.",
+              "explanation": "Document external integrations in CLAUDE.md. Reference where credentials are stored and how each integration is used."
+            },
+            {
+              "title": "CLAUDE.md Anti-Patterns",
+              "code": "# What NOT to Put in CLAUDE.md\n\n## ❌ Bad: Vague Instructions\n\"Be careful with the codebase\"\n\"Follow best practices\"\n\n## ✅ Good: Specific Rules\n\"Never use `any` type in TypeScript\"\n\"Always add error handling to async functions\"\n\"Delete commented-out code before committing\"\n\n\n## ❌ Bad: Rules Without Context\n\"Use proper naming\"\n\n## ✅ Good: Naming Conventions\n\"Files: kebab-case (user-service.ts)\nClasses: PascalCase (UserService)\nFunctions: camelCase (getUserById)\nConstants: UPPER_SNAKE (MAX_RETRY_COUNT)\"",
+              "explanation": "Avoid vague instructions. Be specific about what 'correct' means in your codebase."
+            }
+          ],
+          "exercises": [
+            {
+              "prompt": "Create a CLAUDE.md for a Node.js Express project. Include project structure, coding conventions, and response formats.",
+              "hints": [
+                "Start with project overview",
+                "Document tech stack and structure",
+                "Include specific code examples"
+              ]
+            },
+            {
+              "prompt": "Create a .claude/rules/api-conventions.md file for API endpoints. Use YAML frontmatter with path patterns.",
+              "hints": [
+                "Use paths array for glob patterns",
+                "Document request/response formats",
+                "Include example code"
+              ]
+            },
+            {
+              "prompt": "Create a custom slash command for running tests.",
+              "hints": [
+                "Use markdown file in .claude/commands/",
+                "Include description in frontmatter",
+                "Define a clear checklist"
+              ]
+            }
+          ],
+          "lab": {
+            "title": "Configure a Real Project",
+            "description": "Configure Claude Code for an existing project with CLAUDE.md, rules, and custom commands.",
+            "steps": [
+              "Analyze the project structure",
+              "Create CLAUDE.md with conventions",
+              "Set up path-specific rules",
+              "Create a custom slash command",
+              "Test with various requests"
+            ]
+          },
+          "video": "/videos/claude-md.mp4"
+        }
+      ]
+    },
+    {
+      "id": "prompt-engineering",
+      "title": "Prompt Engineering & Structured Output",
+      "weight": "20%",
+      "lessons": [
+        {
+          "id": "json-schemas",
+          "title": "JSON Schemas for Tool Output",
+          "objectives": [
+            "Define JSON schemas with required/optional fields",
+            "Handle nullable and enum fields",
+            "Implement validation and retry loops"
+          ],
+          "concept": "JSON schemas define the structure of tool inputs and outputs. Proper schemas ensure Claude generates valid, parseable responses.",
+          "examples": [
+            {
+              "title": "Basic JSON Schema",
+              "code": "{\n  name: 'extract_order_info',\n  description: 'Extract order information from text',\n  input_schema: {\n    type: 'object',\n    properties: {\n      order_id: {\n        type: 'string',\n        description: 'Order ID in format ORD-XXXXX'\n      },\n      customer_name: {\n        type: 'string',\n        description: 'Customer full name'\n      },\n      amount: {\n        type: 'number',\n        description: 'Order total in USD'\n      }\n    },\n    required: ['order_id', 'amount']\n  }\n}",
+              "explanation": "Basic schema with required and optional fields. Required fields must be present; optional fields may be omitted."
+            },
+            {
+              "title": "Nullable Fields",
+              "code": "{\n  properties: {\n    order_id: { type: 'string' },\n    tracking_number: {\n      type: ['string', 'null'],\n      description: 'Tracking number if shipped, null if not yet shipped'\n    },\n    shipped_at: {\n      type: ['string', 'null'],\n      description: 'ISO 8601 timestamp when order was shipped'\n    }\n  }\n}\n\n// Usage:\n{\n  order_id: 'ORD-12345',\n  tracking_number: null,  // Not shipped yet\n  shipped_at: null\n}",
+              "explanation": "Use ['type', 'null'] for nullable fields. This tells Claude the field can be present but empty."
+            },
+            {
+              "title": "Enum Fields",
+              "code": "{\n  properties: {\n    status: {\n      type: 'string',\n      enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],\n      description: 'Current order status'\n    },\n    priority: {\n      type: 'string',\n      enum: ['normal', 'high', 'urgent'],\n      default: 'normal'\n    }\n  }\n}",
+              "explanation": "Enums restrict values to a specific set. Use when a field has limited valid values."
+            },
+            {
+              "title": "Handling 'Other' Values",
+              "code": "{\n  properties: {\n    reason: {\n      type: 'string',\n      enum: ['defective', 'wrong_item', 'late_delivery', 'other'],\n      description: 'Primary reason for return'\n    },\n    reason_detail: {\n      type: ['string', 'null'],\n      description: 'If reason is \"other\", explain the reason'\n    }\n  },\n  required: ['reason'],\n  // Claude will be forced to use reason_detail if reason is 'other'\n  if: { properties: { reason: { const: 'other' } } },\n  then: { required: ['reason_detail'] }\n}",
+              "explanation": "When 'other' is a valid choice, require an additional detail field. Use if/then for conditional requirements."
+            },
+            {
+              "title": "Validation Retry Loop",
+              "code": "async function extractWithRetry(text, maxRetries = 3) {\n  for (let attempt = 1; attempt <= maxRetries; attempt++) {\n    try {\n      const result = await claude.messages.create({\n        messages: [{ role: 'user', content: text }],\n        tools: [extract_order_schema]\n      });\n      \n      const output = parseToolCall(result);\n      validateSchema(output); // Throws if invalid\n      return output;\n      \n    } catch (error) {\n      if (attempt === maxRetries) throw error;\n      \n      // Retry with correction\n      await claude.messages.create({\n        messages: [\n          { role: 'user', content: text },\n          { role: 'user', content: `Invalid output: ${error.message}. Please correct.` }\n        ],\n        tools: [extract_order_schema]\n      });\n    }\n  }\n}",
+              "explanation": "Validation retry loops handle malformed output. On validation failure, provide the error and let Claude correct."
+            },
+            {
+              "title": "Nested Objects",
+              "code": "{\n  properties: {\n    customer: {\n      type: 'object',\n      properties: {\n        id: { type: 'string' },\n        name: { type: 'string' },\n        email: { type: 'string', format: 'email' }\n      },\n      required: ['id', 'name']\n    },\n    items: {\n      type: 'array',\n      items: {\n        type: 'object',\n        properties: {\n          product_id: { type: 'string' },\n          quantity: { type: 'number', minimum: 1 },\n          price: { type: 'number' }\n        },\n        required: ['product_id', 'quantity', 'price']\n      }\n    },\n    shipping_address: { $ref: '#/definitions/Address' }\n  },\n  definitions: {\n    Address: {\n      type: 'object',\n      properties: {\n        street: { type: 'string' },\n        city: { type: 'string' },\n        zip: { type: 'string' }\n      }\n    }\n  }\n}",
+              "explanation": "Schemas can have nested objects and use $ref for reusable definitions. This creates complex but maintainable schemas."
+            },
+            {
+              "title": "Array Validation",
+              "code": "{\n  properties: {\n    tags: {\n      type: 'array',\n      items: { type: 'string' },\n      minItems: 1,\n      maxItems: 10,\n      description: 'List of tags, 1-10 items'\n    },\n    variations: {\n      type: 'array',\n      items: {\n        type: 'object',\n        properties: {\n          size: { type: 'string' },\n          color: { type: 'string' },\n          in_stock: { type: 'boolean' }\n        }\n      }\n    }\n  }\n}",
+              "explanation": "Arrays can have min/max item counts. Each array item can be a complex object with its own validation."
+            },
+            {
+              "title": "Strict Mode",
+              "code": "// Enable strict validation\nconst schema = {\n  // ... schema definition ...\n  additionalProperties: false  // Reject unknown fields\n};\n\n\n// Now Claude must only return defined fields\n// Any extra fields will cause validation failure\n\n{\n  order_id: 'ORD-123',  // OK\n  status: 'shipped',    // OK\n  unknown_field: 'x'   // FAILS - not in schema\n}",
+              "explanation": "additionalProperties: false enables strict mode. Any unexpected fields cause validation failure."
+            }
+          ],
+          "exercises": [
+            {
+              "prompt": "Create a JSON schema for a product with name, price, description, category, and optional tags array.",
+              "hints": [
+                "Use correct field types",
+                "Add descriptions to all fields",
+                "Make tags optional with minItems 0"
+              ]
+            },
+            {
+              "prompt": "Add validation with retry loop to a tool that extracts structured data.",
+              "hints": [
+                "Parse tool call output",
+                "Validate against schema",
+                "Retry on failure with error message"
+              ]
+            },
+            {
+              "prompt": "Create a schema with conditional required fields: if status is 'refunded', require refund_reason.",
+              "hints": [
+                "Use if/then schema syntax",
+                "Make refund_reason required only when status='refunded'",
+                "Test both cases"
+              ]
+            }
+          ],
+          "lab": {
+            "title": "Build a Data Extraction Pipeline",
+            "description": "Create a pipeline that extracts structured order data from unstructured text with validation.",
+            "steps": [
+              "Define JSON schema for order extraction",
+              "Implement tool with proper schema",
+              "Add validation with retry loop",
+              "Handle edge cases (missing fields, invalid formats)",
+              "Test with 20 sample inputs"
+            ]
+          },
+          "video": "/videos/json-schemas.mp4"
+        }
+      ]
+    },
+    {
+      "id": "context-management",
+      "title": "Context Management & Reliability",
+      "weight": "15%",
+      "lessons": [
+        {
+          "id": "context-windows",
+          "title": "Managing Context Windows",
+          "objectives": [
+            "Understand context window limits",
+            "Implement progressive summarization",
+            "Delegate subagents for discovery"
+          ],
+          "concept": "Context windows have token limits. Effective context management keeps important information while reducing total tokens.",
+          "examples": [
+            {
+              "title": "Context Window Anatomy",
+              "code": "// Context window includes:\n{\n  systemPrompt: 2000,    // System prompt tokens\n  messages: 15000,       // Conversation history\n  toolDefinitions: 3000, // Tool descriptions\n  toolResults: 5000      // Recent tool outputs\n  // Total: ~25,000 tokens\n  // With 200,000 context window (Opus)\n}\n\n// Budget your context:\nconst CONTEXT_BUDGET = {\n  systemPrompt: 2000,\n  messages: 150000,\n  toolDefs: 5000,\n  results: 10000\n};",
+              "explanation": "Context window includes system prompt, messages, tool definitions, and tool results. Budget tokens for each component."
+            },
+            {
+              "title": "Progressive Summarization",
+              "code": "async function progressiveSummarizer(conversation, threshold = 0.7) {\n  const currentTokens = countTokens(conversation);\n  const limit = getContextLimit();\n  \n  if (currentTokens / limit < threshold) {\n    return conversation; // No summarization needed\n  }\n  \n  // Summarize older messages\n  const { recent, older } = splitConversation(conversation);\n  const summary = await claude.messages.create({\n    messages: [\n      { role: 'user', content: `Summarize this conversation, preserving key facts: ${older}` }\n    ]\n  });\n  \n  return [...summary, ...recent];\n}",
+              "explanation": "Progressive summarization compresses older conversation while keeping recent messages verbatim. Key facts (names, dates, decisions) are preserved."
+            },
+            {
+              "title": "Fact Extraction",
+              "code": "// Extract critical facts for reliable access\nconst CASE_FACTS_PROMPT = `\nExtract key case facts from this support conversation.\nFormat as structured data:\n\n{\n  \"customer\": {\n    \"name\": \"...\",\n    \"email\": \"...\"\n  },\n  \"orders\": [\"ORD-123\", \"ORD-456\"],\n  \"issues\": [\"late delivery\", \"wrong size\"],\n  \"commitments\": [\"refund within 5 days\"],\n  \"preferences\": [\"prefers email contact\"]\n}\n\nThese facts are preserved across summarization.`;\n// Include in every prompt after summarization\nconst fullPrompt = `\nCase facts: ${JSON.stringify(caseFacts)}\n\nRecent conversation: ${recentMessages}`;",
+              "explanation": "Extract critical facts (names, numbers, commitments) into a structured block that persists across summarization. This prevents 'lost in the middle' for important details."
+            },
+            {
+              "title": "Subagent for Discovery",
+              "code": "// Use subagent for verbose discovery\nasync function discoverCodebase(pattern) {\n  const subagent = await session.fork();\n  \n  // Subagent does verbose search in forked context\n  const findings = await subagent.turn({\n    messages: [{\n      role: 'user',\n      content: `Find all code matching: ${pattern}. List every match with file path and relevant snippet.`\n    }]\n  });\n  \n  // Only summary returns to main context\n  const summary = summarizeFindings(findings);\n  return summary; // 50 lines instead of 500\n}",
+              "explanation": "Verbose discovery tasks (searching many files) should run in subagents. Only the summary returns to main context."
+            },
+            {
+              "title": "Scratchpad Files",
+              "code": "// Use scratchpad for intermediate state\nconst SCRATCHPAD_PROMPT = `\nMaintain a scratchpad file at ./scratchpad.md\n\nUpdate it at key moments:\n- When you discover important facts\n- When you make a decision\n- When you complete a subtask\n\nFormat:\n## Current Task: [description]\n## Discovered: [facts]\n## Next Steps: [remaining work]\n## Decisions: [choices made]`;\n\n// Include scratchpad in context\nconst context = {\n  messages: [...recentMessages],\n  additionalContext: [scratchpadContent]\n};",
+              "explanation": "Scratchpad files hold intermediate state and decisions. Include the scratchpad in context so Claude maintains awareness of progress."
+            },
+            {
+              "title": "Lost in the Middle",
+              "code": "// Problem: Important info in middle of long context gets lost\n// Solution: Put critical info at start or end\n\nconst PROMPT_TEMPLATE = `\n# Critical Requirements (always at start)\n${requirements}\n\n# Recent Work\n${recentMessages}\n\n# Summary of Previous Work (always at end)\n${summary}\n\n# Current Task\n${currentTask}`;\n\n// Or structure as:\nconst context = [\n  systemPrompt,\n  criticalInstructions,  // At start\n  ...workSoFar,\n  summary,               // At end\n  currentTask\n];",
+              "explanation": "Models are better at recalling info at the start or end of context. Structure prompts to keep critical info at these positions."
+            },
+            {
+              "title": "Token Budgeting",
+              "code": "// Budget tokens before each API call\nfunction budgetTokens(request) {\n  const budget = {\n    systemPrompt: 2000,\n    toolDefs: calculateTokens(toolDefinitions),\n    history: calculateTokens(messageHistory),\n    maxResponse: request.maxTokens || 1024\n  };\n  \n  const total = Object.values(budget).reduce((a, b) => a + b, 0);\n  const limit = getModelLimit(request.model);\n  \n  if (total > limit * 0.9) {\n    throw new Error('Context would exceed limit');\n  }\n  \n  return budget;\n}",
+              "explanation": "Calculate total tokens before making API calls. Fail fast if context would exceed limits rather than getting truncated results."
+            },
+            {
+              "title": "Hybrid Memory Strategy",
+              "code": "// Use different storage for different info types\nconst memory = {\n  // Recent conversation - in context\n  recent: messages.slice(-20),\n  \n  // Structured facts - in context (preserved)\n  facts: extractedFacts,\n  \n  // Old conversation - summarized\n  summary: conversationSummary,\n  \n  // Rarely used info - external retrieval\n  archives: vectorSearch('older conversations')\n};\n\n\n// Hybrid approach balances preservation with reduction",
+              "explanation": "Different info needs different storage. Recent conversation goes in context, facts are preserved, old stuff is summarized or retrieved."
+            }
+          ],
+          "exercises": [
+            {
+              "prompt": "Implement a token counter function and add context budget checking before API calls.",
+              "hints": [
+                "Use tiktoken or similar for counting",
+                "Calculate system + messages + tool defs",
+                "Fail if exceeding limit"
+              ]
+            },
+            {
+              "prompt": "Create a progressive summarization function that compresses old messages while keeping recent ones.",
+              "hints": [
+                "Split messages into recent and older",
+                "Summarize older with key facts preservation",
+                "Combine back together"
+              ]
+            },
+            {
+              "prompt": "Build a fact extraction function that pulls critical info from verbose outputs.",
+              "hints": [
+                "Extract numbers, dates, names, decisions",
+                "Format as structured JSON",
+                "Include in all future prompts"
+              ]
+            }
+          ],
+          "lab": {
+            "title": "Context Management Challenge",
+            "description": "Handle a long conversation (100+ turns) while maintaining important context.",
+            "steps": [
+              "Implement token counting and budget checking",
+              "Add progressive summarization at threshold",
+              "Extract and preserve critical facts",
+              "Use subagents for verbose tasks",
+              "Test with realistic long conversations"
+            ]
+          },
+          "video": "/videos/context-windows.mp4"
+        }
+      ]
+    }
+  ]
+}

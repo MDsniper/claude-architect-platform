@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+      .clip { position: absolute; opacity: 0; }
+      #title {
+        font-size: 64px;
+        font-weight: 900;
+        color: #fff;
+        text-align: center;
+        position: absolute;
+        top: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-transform: uppercase;
+        letter-spacing: 6px;
+      }
+      #subtitle {
+        font-size: 24px;
+        color: #a0aec0;
+        text-align: center;
+        position: absolute;
+        top: 180px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      .file-box {
+        position: absolute;
+        padding: 16px 24px;
+        background: rgba(30, 30, 50, 0.95);
+        border: 2px solid #6366f1;
+        border-radius: 8px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 16px;
+        color: #22c55e;
+      }
+      #file1 { top: 240px; left: 200px; border-color: #f59e0b; }
+      #file2 { top: 240px; right: 200px; border-color: #6366f1; }
+      #file3 { top: 420px; left: 200px; border-color: #6366f1; }
+      #file4 { top: 420px; right: 200px; border-color: #22c55e; }
+      .file-label {
+        font-size: 14px;
+        color: #6366f1;
+        margin-bottom: 8px;
+      }
+      .code-snippet { color: #a0aec0; font-size: 14px; }
+      .rule-box {
+        position: absolute;
+        padding: 16px 24px;
+        background: rgba(245, 158, 11, 0.15);
+        border-left: 4px solid #f59e0b;
+        font-size: 18px;
+        color: #fff;
+        max-width: 600px;
+      }
+      .key-term { color: #f59e0b; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="20" data-width="1920" data-height="1080">
+      <div id="title" class="clip" data-start="0" data-duration="4" data-track-index="0">CLAUDE.MD</div>
+      <div id="subtitle" class="clip" data-start="0.5" data-duration="3.5" data-track-index="1">Project Configuration for Claude Code</div>
+
+      <div id="file1" class="clip file-box" data-start="4" data-duration="4" data-track-index="0">
+        <div class="file-label">CLAUDE.md</div>
+        <div>Project overview & conventions</div>
+      </div>
+      <div id="file2" class="clip file-box" data-start="4.3" data-duration="3.7" data-track-index="0">
+        <div class="file-label">.claude/rules/</div>
+        <div>Path-specific rules</div>
+      </div>
+      <div id="file3" class="clip file-box" data-start="4.6" data-duration="3.4" data-track-index="0">
+        <div class="file-label">.claude/commands/</div>
+        <div>Slash commands</div>
+      </div>
+      <div id="file4" class="clip file-box" data-start="4.9" data-duration="3.1" data-track-index="0">
+        <div class="file-label">.claude/skills/</div>
+        <div>Custom skills</div>
+      </div>
+
+      <div id="rule1" class="clip rule-box" data-start="9" data-duration="4" data-track-index="0">
+        <span class="key-term">rules/:</span> YAML frontmatter with glob patterns
+      </div>
+      <div id="rule2" class="clip rule-box" data-start="13" data-duration="4" data-track-index="0">
+        <span class="key-term">commands/:</span> Version-controlled slash commands
+      </div>
+      <div id="rule3" class="clip rule-box" data-start="17" data-duration="3" data-track-index="0">
+        <span class="key-term">skills/:</span> context: fork for isolation
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      tl.from("#title", { opacity: 0, scale: 0.8, duration: 1 }, 0)
+        .from("#subtitle", { opacity: 0, y: 20, duration: 0.8 }, 0.3)
+        .from("#file1", { opacity: 0, x: -200, duration: 0.6 }, 4)
+        .from("#file2", { opacity: 0, x: 200, duration: 0.6 }, 4.3)
+        .from("#file3", { opacity: 0, y: -100, duration: 0.6 }, 4.6)
+        .from("#file4", { opacity: 0, y: 100, duration: 0.6 }, 4.9)
+        .from("#rule1", { opacity: 0, x: -80, duration: 0.6 }, 9)
+        .from("#rule2", { opacity: 0, x: 80, duration: 0.6 }, 13)
+        .from("#rule3", { opacity: 0, y: 50, duration: 0.6 }, 17);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

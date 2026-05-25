@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Architect LMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --surface-2: #1c1c26;
+      --surface-3: #242430;
+      --border: #2a2a3a;
+      --text: #e8e8f0;
+      --text-muted: #7a7a90;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --success: #22c55e;
+      --error: #ef4444;
+      --warning: #f59e0b;
+      --gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* Top Bar */
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 64px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      z-index: 100;
+      gap: 24px;
+    }
+    
+    .logo {
+      font-weight: 900;
+      font-size: 13px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: var(--gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .progress-stats {
+      display: flex;
+      gap: 24px;
+      margin-left: auto;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Layout */
+    .layout {
+      display: flex;
+      margin-top: 64px;
+      min-height: calc(100vh - 64px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 320px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      position: fixed;
+      top: 64px;
+      bottom: 0;
+      overflow-y: auto;
+      padding: 20px 0;
+    }
+
+    .domain-section {
+      margin-bottom: 16px;
+    }
+
+    .domain-header {
+      padding: 12px 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+
+    .domain-header:hover {
+      color: var(--text);
+    }
+
+    .domain-weight {
+      font-size: 10px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .lessons-list {
+      display: none;
+    }
+
+    .lessons-list.expanded {
+      display: block;
+    }
+
+    .lesson-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 10px 20px 10px 32px;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s;
+      border-left: 2px solid transparent;
+    }
+
+    .lesson-btn:hover {
+      background: var(--surface-2);
+    }
+
+    .lesson-btn.active {
+      background: var(--surface-2);
+      border-left-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .lesson-btn.completed {
+      color: var(--success);
+    }
+
+    .lesson-check {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      flex-shrink: 0;
+    }
+
+    .lesson-btn.completed .lesson-check {
+      background: var(--success);
+      border-color: var(--success);
+      color: var(--bg);
+    }
+
+    /* Main Content */
+    .main {
+      flex: 1;
+      margin-left: 320px;
+      padding: 40px 48px;
+      max-width: 1000px;
+    }
+
+    /* Loading */
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: calc(100vh - 64px);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* Lesson Header */
+    .lesson-header {
+      margin-bottom: 32px;
+    }
+
+    .lesson-breadcrumb {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+
+    .lesson-objectives {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 20px 24px;
+      border: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    .objectives-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .objectives-list {
+      list-style: none;
+    }
+
+    .objectives-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .objectives-list li:last-child {
+      margin-bottom: 0;
+    }
+
+    .objective-check {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--surface-3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    /* Video Player */
+    .video-container {
+      margin-bottom: 32px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 2px solid var(--accent);
+      background: var(--bg);
+    }
+
+    .video-player {
+      width: 100%;
+      display: block;
+      max-height: 400px;
+    }
+
+    .video-label {
+      padding: 12px 20px;
+      background: var(--surface);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Concept Box */
+    .concept-box {
+      background: var(--gradient);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 32px;
+    }
+
+    .concept-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 12px;
+    }
+
+    .concept-text {
+      font-size: 16px;
+      line-height: 1.7;
+      color: white;
+    }
+
+    /* Examples Section */
+    .examples-section {
+      margin-bottom: 40px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+    }
+
+    .example-count {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Example Cards */
+    .example-card {
+      background: var(--surface);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+
+    .example-card:hover {
+      border-color: var(--accent);
+    }
+
+    .example-header {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      background: var(--surface);
+    }
+
+    .example-title {
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .example-number {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .example-toggle {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--surface-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s;
+    }
+
+    .example-card.expanded .example-toggle {
+      transform: rotate(180deg);
+    }
+
+    .example-content {
+      display: none;
+      padding: 0 20px 20px;
+    }
+
+    .example-card.expanded .example-content {
+      display: block;
+    }
+
+    .example-code {
+      background: var(--bg);
+      border-radius: 12px;
+      padding: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      border: 1px solid var(--border);
+    }
+
+    .example-explanation {
+      margin-top: 16px;
+      padding: 16px 20px;
+      background: var(--surface-2);
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.6;
+      border-left: 3px solid var(--accent);
+    }
+
+    .example-explanation strong {
+      color: var(--accent);
+    }
+
+    /* Exercises Section */
+    .exercises-section {
+      margin-bottom: 40px;
+    }
+
+    .exercise-card {
+      background: var(--surface);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      padding: 20px;
+      margin-bottom: 12px;
+    }
+
+    .exercise-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .exercise-number {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: var(--warning);
+      color: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .exercise-prompt {
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+
+    .exercise-hints {
+      background: var(--surface-2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-top: 12px;
+    }
+
+    .hints-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .hints-list {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Lab Section */
+    .lab-section {
+      background: var(--surface);
+      border-radius: 16px;
+      border: 2px solid var(--accent);
+      padding: 28px;
+    }
+
+    .lab-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .lab-badge {
+      padding: 4px 12px;
+      background: var(--accent);
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-radius: 20px;
+    }
+
+    .lab-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .lab-description {
+      font-size: 15px;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .lab-steps {
+      list-style: none;
+    }
+
+    .lab-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .lab-step:last-child {
+      border-bottom: none;
+    }
+
+    .step-number {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--surface-3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .step-text {
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* Mark Complete Button */
+    .mark-complete-btn {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 14px 28px;
+      background: var(--gradient);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.4);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mark-complete-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(99, 102, 241, 0.5);
+    }
+
+    .mark-complete-btn.completed {
+      background: var(--success);
+      box-shadow: 0 8px 32px rgba(34, 197, 94, 0.4);
+    }
+
+    /* Navigation */
+    .lesson-nav {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .nav-btn {
+      padding: 12px 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: 10px;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-btn:hover:not(:disabled) {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    /* Hidden */
+    .hidden {
+      display: none !important;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .sidebar {
+        display: none;
+      }
+      .main {
+        margin-left: 0;
+        padding: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="topbar">
+    <div class="logo">CLAUDE ARCHITECT</div>
+    <div class="progress-stats">
+      <div class="stat">
+        <div class="stat-value" id="lessonsCompleted">0</div>
+        <div class="stat-label">Lessons Done</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="examplesViewed">0</div>
+        <div class="stat-label">Examples Read</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="progressPercent">0%</div>
+        <div class="stat-label">Complete</div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <!-- Generated by JS -->
+    </aside>
+
+    <main class="main">
+      <div class="loading" id="loading">Loading curriculum...</div>
+      <div id="content" class="hidden"></div>
+    </main>
+  </div>
+
+  <button class="mark-complete-btn hidden" id="completeBtn" onclick="markLessonComplete()">
+    <span id="completeIcon">○</span>
+    <span id="completeText">Mark Complete</span>
+  </button>
+
+  <script type="module">
+    let curriculum = null;
+    let state = {
+      currentDomain: null,
+      currentLesson: null,
+      completedLessons: new Set(),
+      viewedExamples: new Set()
+    };
+
+    async function api(endpoint) {
+      const res = await fetch(`/api${endpoint}`);
+      return res.json();
+    }
+
+    async function loadData() {
+      try {
+        [curriculum, state.completedLessons] = await Promise.all([
+          api('/curriculum'),
+          api('/progress').then(p => new Set(p.completed_lessons || []))
+        ]);
+        initSidebar();
+        updateStats();
+        document.getElementById('loading').classList.add('hidden');
+        
+        // Load first lesson
+        if (curriculum.domains.length > 0 && curriculum.domains[0].lessons.length > 0) {
+          loadLesson(curriculum.domains[0].id, curriculum.domains[0].lessons[0].id);
+        }
+      } catch (e) {
+        console.error('Failed to load:', e);
+        document.getElementById('loading').textContent = 'Error loading curriculum';
+      }
+    }
+
+    function initSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.innerHTML = curriculum.domains.map(domain => `
+        <div class="domain-section">
+          <div class="domain-header" onclick="toggleDomain('${domain.id}')">
+            <span>${domain.title}</span>
+            <span class="domain-weight">${domain.weight}</span>
+          </div>
+          <div class="lessons-list" id="lessons-${domain.id}">
+            ${domain.lessons.map(lesson => `
+              <button class="lesson-btn ${state.completedLessons.has(lesson.id) ? 'completed' : ''}" 
+                      onclick="loadLesson('${domain.id}', '${lesson.id}')">
+                <div class="lesson-check">${state.completedLessons.has(lesson.id) ? '✓' : ''}</div>
+                <span>${lesson.title}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function toggleDomain(domainId) {
+      const list = document.getElementById(`lessons-${domainId}`);
+      list.classList.toggle('expanded');
+    }
+
+    function loadLesson(domainId, lessonId) {
+      const domain = curriculum.domains.find(d => d.id === domainId);
+      const lesson = domain?.lessons.find(l => l.id === lessonId);
+      if (!lesson) return;
+
+      state.currentDomain = domainId;
+      state.currentLesson = lessonId;
+
+      // Update sidebar active state
+      document.querySelectorAll('.lesson-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.querySelector(`[onclick="loadLesson('${domainId}', '${lessonId}')"]`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      // Expand domain
+      document.querySelectorAll('.lessons-list').forEach(l => l.classList.remove('expanded'));
+      document.getElementById(`lessons-${domainId}`)?.classList.add('expanded');
+
+      renderLesson(domain, lesson);
+    }
+
+    function renderLesson(domain, lesson) {
+      const isCompleted = state.completedLessons.has(lesson.id);
+      const btn = document.getElementById('completeBtn');
+      btn.classList.remove('hidden', 'completed');
+      btn.querySelector('#completeIcon').textContent = isCompleted ? '✓' : '○';
+      btn.querySelector('#completeText').textContent = isCompleted ? 'Completed' : 'Mark Complete';
+      if (isCompleted) btn.classList.add('completed');
+
+      const videoHtml = lesson.video ? `
+        <div class="video-container">
+          <video class="video-player" controls>
+            <source src="${lesson.video}" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
+          <div class="video-label">▶ Video Explanation</div>
+        </div>
+      ` : '';
+
+      const examplesHtml = lesson.examples.map((ex, i) => `
+        <div class="example-card" id="example-${i}">
+          <div class="example-header" onclick="toggleExample(${i})">
+            <div class="example-title">
+              <div class="example-number">${i + 1}</div>
+              <span>${ex.title}</span>
+            </div>
+            <div class="example-toggle">▼</div>
+          </div>
+          <div class="example-content">
+            <pre class="example-code">${escapeHtml(ex.code)}</pre>
+            <div class="example-explanation"><strong>Explanation:</strong> ${ex.explanation}</div>
+          </div>
+        </div>
+      `).join('');
+
+      const exercisesHtml = lesson.exercises?.map((ex, i) => `
+        <div class="exercise-card">
+          <div class="exercise-header">
+            <div class="exercise-number">${i + 1}</div>
+            <div class="exercise-prompt">${ex.prompt}</div>
+          </div>
+          <div class="exercise-hints">
+            <div class="hints-title">Hints</div>
+            <div class="hints-list">${ex.hints.map(h => `• ${h}`).join('<br>')}</div>
+          </div>
+        </div>
+      `).join('') || '';
+
+      const labHtml = lesson.lab ? `
+        <div class="lab-section">
+          <div class="lab-header">
+            <span class="lab-badge">Lab</span>
+            <span class="lab-title">${lesson.lab.title}</span>
+          </div>
+          <p class="lab-description">${lesson.lab.description}</p>
+          <ol class="lab-steps">
+            ${lesson.lab.steps.map((step, i) => `
+              <li class="lab-step">
+                <div class="step-number">${i + 1}</div>
+                <div class="step-text">${step}</div>
+              </li>
+            `).join('')}
+          </ol>
+        </div>
+      ` : '';
+
+      document.getElementById('content').innerHTML = `
+        <div class="lesson-header">
+          <div class="lesson-breadcrumb">${domain.title} / ${lesson.title}</div>
+          <h1>${lesson.title}</h1>
+          <div class="lesson-objectives">
+            <div class="objectives-title">Learning Objectives</div>
+            <ul class="objectives-list">
+              ${lesson.objectives.map(obj => `
+                <li>
+                  <div class="objective-check">○</div>
+                  <span>${obj}</span>
+                </li>
+              `).join('')}
+            </ul>
+          </div>
+        </div>
+
+        ${videoHtml}
+
+        <div class="concept-box">
+          <div class="concept-label">Core Concept</div>
+          <div class="concept-text">${lesson.concept}</div>
+        </div>
+
+        <div class="examples-section">
+          <div class="section-header">
+            <span class="section-title">Code Examples</span>
+            <span class="example-count">${lesson.examples.length} examples</span>
+          </div>
+          ${examplesHtml}
+        </div>
+
+        ${exercisesHtml ? `
+          <div class="exercises-section">
+            <div class="section-header">
+              <span class="section-title">Practice Exercises</span>
+              <span class="example-count">${lesson.exercises.length} exercises</span>
+            </div>
+            ${exercisesHtml}
+          </div>
+        ` : ''}
+
+        ${labHtml}
+
+        <div class="lesson-nav">
+          <button class="nav-btn" onclick="prevLesson()">← Previous</button>
+          <button class="nav-btn" onclick="nextLesson()">Next →</button>
+        </div>
+      `;
+
+      document.getElementById('content').classList.remove('hidden');
+    }
+
+    function toggleExample(index) {
+      const card = document.getElementById(`example-${index}`);
+      const exampleId = `${state.currentLesson}-${index}`;
+      
+      card.classList.toggle('expanded');
+      
+      if (card.classList.contains('expanded') && !state.viewedExamples.has(exampleId)) {
+        state.viewedExamples.add(exampleId);
+        updateStats();
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function updateStats() {
+      const totalLessons = curriculum?.domains.reduce((sum, d) => sum + d.lessons.length, 0) || 0;
+      const completedCount = state.completedLessons.size;
+      const examplesCount = state.viewedExamples.size;
+      const progress = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
+
+      document.getElementById('lessonsCompleted').textContent = completedCount;
+      document.getElementById('examplesViewed').textContent = examplesCount;
+      document.getElementById('progressPercent').textContent = `${progress}%`;
+    }
+
+    async function markLessonComplete() {
+      if (!state.currentLesson) return;
+
+      const lessonId = state.currentLesson;
+      const isCompleted = state.completedLessons.has(lessonId);
+
+      if (isCompleted) {
+        state.completedLessons.delete(lessonId);
+      } else {
+        state.completedLessons.add(lessonId);
+      }
+
+      // Update UI
+      const btn = document.getElementById('completeBtn');
+      btn.classList.toggle('completed');
+      btn.querySelector('#completeIcon').textContent = isCompleted ? '○' : '✓';
+      btn.querySelector('#completeText').textContent = isCompleted ? 'Mark Complete' : 'Completed';
+
+      // Update sidebar
+      const sidebarBtn = document.querySelector(`[onclick="loadLesson('${state.currentDomain}', '${lessonId}')"]`);
+      if (sidebarBtn) {
+        sidebarBtn.classList.toggle('completed');
+        sidebarBtn.querySelector('.lesson-check').textContent = isCompleted ? '' : '✓';
+      }
+
+      // Save progress
+      await fetch('/api/progress/lesson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lesson_id: lessonId, completed: !isCompleted })
+      });
+
+      updateStats();
+    }
+
+    function prevLesson() {
+      const domain = curriculum.domains.find(d => d.id === state.currentDomain);
+      const idx = domain?.lessons.findIndex(l => l.id === state.currentLesson) || 0;
+      
+      if (idx > 0) {
+        loadLesson(state.currentDomain, domain.lessons[idx - 1].id);
+      } else {
+        const domainIdx = curriculum.domains.findIndex(d => d.id === state.currentDomain);
+        if (domainIdx > 0) {
+          const prevDomain = curriculum.domains[domainIdx - 1];
+          const lastLesson = prevDomain.lessons[prevDomain.lessons.length - 1];
+          loadLesson(prevDomain.id, lastLesson.id);
+        }
+      }
+    }
+
+    function nextLesson() {
+      const domain = curriculum.domains.find(d => d.id === state.currentDomain);
+      const idx = domain?.lessons.findIndex(l => l.id === state.currentLesson) || 0;
+      
+      if (idx < domain.lessons.length - 1) {
+        loadLesson(state.currentDomain, domain.lessons[idx + 1].id);
+      } else {
+        const domainIdx = curriculum.domains.findIndex(d => d.id === state.currentDomain);
+        if (domainIdx < curriculum.domains.length - 1) {
+          const nextDomain = curriculum.domains[domainIdx + 1];
+          loadLesson(nextDomain.id, nextDomain.lessons[0].id);
+        }
+      }
+    }
+
+    window.toggleExample = toggleExample;
+    window.loadLesson = loadLesson;
+    window.toggleDomain = toggleDomain;
+    window.markLessonComplete = markLessonComplete;
+    window.prevLesson = prevLesson;
+    window.nextLesson = nextLesson;
+
+    loadData();
+  </script>
+</body>
+</html>

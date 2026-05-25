@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+      .clip {
+        position: absolute;
+        opacity: 0;
+      }
+      #title {
+        font-size: 72px;
+        font-weight: 900;
+        color: #fff;
+        text-align: center;
+        position: absolute;
+        top: 200px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-transform: uppercase;
+        letter-spacing: 8px;
+        text-shadow: 0 0 40px rgba(99, 102, 241, 0.8);
+      }
+      #subtitle {
+        font-size: 28px;
+        font-weight: 400;
+        color: #a0aec0;
+        text-align: center;
+        position: absolute;
+        top: 320px;
+        left: 50%;
+        transform: translateX(-50%);
+        letter-spacing: 4px;
+      }
+      .step {
+        position: absolute;
+        padding: 24px 40px;
+        border-radius: 16px;
+        background: rgba(30, 30, 50, 0.9);
+        border: 2px solid #6366f1;
+        color: #fff;
+        font-size: 24px;
+        font-weight: 600;
+      }
+      .step-number {
+        display: inline-block;
+        width: 40px;
+        height: 40px;
+        background: #6366f1;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 40px;
+        margin-right: 16px;
+        font-size: 20px;
+      }
+      .code-block {
+        position: absolute;
+        background: #0d0d12;
+        border: 1px solid #333;
+        border-radius: 12px;
+        padding: 20px 32px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 18px;
+        color: #22c55e;
+        white-space: pre;
+      }
+      .diagram-circle {
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        font-weight: 700;
+        color: #fff;
+        text-align: center;
+        box-shadow: 0 0 60px rgba(99, 102, 241, 0.5);
+      }
+      .arrow {
+        position: absolute;
+        font-size: 48px;
+        color: #6366f1;
+      }
+      .key-term {
+        color: #f59e0b;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="20"
+      data-width="1920"
+      data-height="1080"
+    >
+      <!-- Title -->
+      <div id="title" class="clip" data-start="0" data-duration="4" data-track-index="0">
+        AGENT LOOPS
+      </div>
+      <div id="subtitle" class="clip" data-start="0.5" data-duration="3.5" data-track-index="1">
+        The Core Pattern for Autonomous AI Systems
+      </div>
+
+      <!-- Step 1 -->
+      <div id="step1" class="clip step" data-start="4" data-duration="4" data-track-index="0">
+        <span class="step-number">1</span>
+        Claude makes a request
+      </div>
+
+      <!-- Step 2 -->
+      <div id="step2" class="clip step" data-start="8" data-duration="4" data-track-index="0">
+        <span class="step-number">2</span>
+        Check <span class="key-term">stop_reason</span>
+      </div>
+
+      <!-- Step 3 -->
+      <div id="step3" class="clip step" data-start="12" data-duration="4" data-track-index="0">
+        <span class="step-number">3</span>
+        Execute tool or show answer
+      </div>
+
+      <!-- Code Example -->
+      <div id="code" class="clip code-block" data-start="16" data-duration="4" data-track-index="0">
+if (stop_reason === <span class="key-term">'tool_use'</span>) &#123;
+  execute(tool);
+  continue;
+&#125;</div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // Title animation
+      tl.from("#title", { opacity: 0, scale: 0.8, duration: 1 }, 0)
+        .from("#subtitle", { opacity: 0, y: 20, duration: 0.8 }, 0.3);
+
+      // Steps fade in sequence
+      tl.from("#step1", { opacity: 0, x: -100, duration: 0.8 }, 4)
+        .from("#step2", { opacity: 0, x: 100, duration: 0.8 }, 8)
+        .from("#step3", { opacity: 0, y: 50, duration: 0.8 }, 12)
+        .from("#code", { opacity: 0, scale: 0.9, duration: 0.8 }, 16);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
